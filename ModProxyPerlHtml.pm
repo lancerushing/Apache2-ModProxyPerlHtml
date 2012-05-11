@@ -78,6 +78,8 @@ sub handler
 		$f->r->headers_out->unset('Content-Length');
 		my @pattern = $f->r->dir_config->get('ProxyHTMLURLMap');
 		my @rewrite = $f->r->dir_config->get('ProxyHTMLRewrite');
+		my @code   = eval($f->r->dir_config->get('ProxyHTMLCode'));
+
 		my $contenttype = $f->r->dir_config->get('ProxyHTMLContentType');
 		$contenttype ||= '(text\/javascript|text\/html|text\/css|text\/xml|application\/.*javascript|application\/.*xml)';
 
@@ -89,6 +91,9 @@ sub handler
 		foreach my $p (@rewrite) {
 			push(@{$ct->{rewrite}}, $p);
 		}
+		foreach my $p (@code) {
+			push(@{$ct->{code}}, $p);
+		}		
 		$ct->{contenttype} = $contenttype;
 		$f->ctx($ct);
 	}
@@ -150,6 +155,12 @@ sub handler
 				my ($match, $substitute) = split(/[\s\t]+/, $p);
 				&rewrite_content(\$ctx->{data}, $match, $substitute, $parsed_uri);
 			}
+
+			# apply codes
+			foreach my $code (@{$ctx->{code}}) {
+				&apply_code(\$ctx->{data}, $code);
+			}
+
 		}
 		# Compress again data if require
 		if (($a_encoding =~ /gzip|deflate/) && ($c_encoding =~ /gzip|deflate/)) {
@@ -180,6 +191,7 @@ sub handler
 			$ctx->{data} = '';
 			$ctx->{pattern} = ();
 			$ctx->{rewrite} = ();
+			$ctx->{regex} = ();
 			$ctx->{keepalives} = $c->keepalives;
 		}
 			
@@ -251,6 +263,21 @@ sub rewrite_content
 
 	# Rewrite things in code (case sensitive)
 	$$data =~ s/$pattern/$replacement/g;
+
+	$/ = $old_terminator;
+
+}
+
+sub apply_code
+{
+	my ($data, $code) = @_;
+
+	return if (!$$data);
+
+	my $old_terminator = $/;
+	$/ = '';
+
+	$code->($$data);
 
 	$/ = $old_terminator;
 
