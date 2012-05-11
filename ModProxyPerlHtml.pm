@@ -276,7 +276,7 @@ sub apply_code
 
 	my $old_terminator = $/;
 	$/ = '';
-
+	
 	$code->($$data);
 
 	$/ = $old_terminator;
